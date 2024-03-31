@@ -25,6 +25,9 @@ interface IERC721TokenReceiver {
 
 contract NFinTech is IERC721 {
     // Note: I have declared all variables you need to complete this challenge
+    error ERC721InvalidOperator(address operator);
+    error ERC721IncorrectOwner(address from, uint256 tokenId, address previousOwner);
+
     string private _name;
     string private _symbol;
 
@@ -76,29 +79,79 @@ contract NFinTech is IERC721 {
 
     function setApprovalForAll(address operator, bool approved) external {
         // TODO: please add your implementaiton here
+        if (operator == address(0)){
+            revert ERC721InvalidOperator(operator);
+        }
+        _operatorApproval[msg.sender][operator] = approved;
+
+        emit ApprovalForAll(msg.sender, operator, approved);
     }
 
     function isApprovedForAll(address owner, address operator) public view returns (bool) {
         // TODO: please add your implementaiton here
+        return _operatorApproval[owner][operator];
     }
 
     function approve(address to, uint256 tokenId) external {
         // TODO: please add your implementaiton here
+        address owner = _owner[tokenId];
+
+        require(msg.sender == owner || isApprovedForAll(owner, msg.sender), "Not Authorized");
+
+        _tokenApproval[tokenId] = to;
+
+        emit Approval(owner, to , tokenId);
     }
 
     function getApproved(uint256 tokenId) public view returns (address operator) {
         // TODO: please add your implementaiton here
+        require(_owner[tokenId] != address(0), "token does not exist");
+        return _tokenApproval[tokenId];
     }
 
     function transferFrom(address from, address to, uint256 tokenId) public {
         // TODO: please add your implementaiton here
+        address owner = ownerOf(tokenId);
+        require(msg.sender == owner ||
+        _tokenApproval[tokenId] == msg.sender ||
+        _operatorApproval[owner][msg.sender], "not owner nor approved");
+
+        _transfer(owner, from, to, tokenId);
+    }
+
+    function _transfer(address owner, address from, address to, uint256 tokenId) private{
+        require(from == owner, "not owner");
+        require(to != address(0), "the address of receiver is 0");
+        _tokenApproval[tokenId] = to;
+        emit Approval(owner, to , tokenId);
+
+        _balances[from] -= 1;
+        _balances[to] += 1;
+        _owner[tokenId] = to;
+
+        emit Transfer(from, to , tokenId);
     }
 
     function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata data) public {
         // TODO: please add your implementaiton here
+        address owner = ownerOf(tokenId);
+        require(msg.sender == owner ||
+        _tokenApproval[tokenId] == msg.sender ||
+        _operatorApproval[owner][msg.sender],"not owner nor approved");
+
+        _transfer(owner, from, to, tokenId);
+        require(to.code.length == 0 || IERC721TokenReceiver(to).onERC721Received(msg.sender, from, tokenId, data) == IERC721TokenReceiver.onERC721Received.selector, "unsafe recipient");
+        
     }
 
     function safeTransferFrom(address from, address to, uint256 tokenId) public {
         // TODO: please add your implementaiton here
+        address owner = ownerOf(tokenId);
+        require(msg.sender == owner ||
+        _tokenApproval[tokenId] == msg.sender ||
+        _operatorApproval[owner][msg.sender],"not owner nor approved");
+
+        _transfer(owner, from, to, tokenId);
+        require(to.code.length == 0 || IERC721TokenReceiver(to).onERC721Received(msg.sender, from, tokenId, "") == IERC721TokenReceiver.onERC721Received.selector, "unsafe recipient");
     }
 }
